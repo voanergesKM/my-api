@@ -2,11 +2,9 @@ import fs from "node:fs";
 
 import type { Request, Response } from "express";
 import HttpErrors from "http-errors";
-
-import { callChatModel } from "../services/llmService.js";
-import { detectText } from "../services/vision-service.js";
-
-import { getRecipieScanPrompt } from "../utils/getRecipieScanPrompt.js";
+import { callChatModel } from "~/services/llmService.js";
+import { getRecipieScanPrompt } from "~/utils/getRecipieScanPrompt.js";
+import { detectText } from "~/services/vision-service.js";
 
 export async function scanRecipieHandler(
   req: Request & { file?: Express.Multer.File },

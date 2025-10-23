@@ -9,6 +9,7 @@
     "noImplicitOverride": true,
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
+    // "rootDir": "src",
     "paths": {
       "~/*": ["./src/*"]
     },
