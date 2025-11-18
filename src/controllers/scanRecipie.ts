@@ -3,7 +3,7 @@ import fs from "node:fs";
 import type { Request, Response } from "express";
 import HttpErrors from "http-errors";
 import { callChatModel } from "~/services/llmService.js";
-import { getRecipieScanPrompt } from "~/utils/getRecipieScanPrompt.js";
+import { getRecipieScanPrompt } from "~/prompts/getRecipieScanPrompt.js";
 import { detectText } from "~/services/vision-service.js";
 
 export async function scanRecipieHandler(
