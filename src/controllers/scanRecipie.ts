@@ -28,14 +28,30 @@ export async function scanRecipieHandler(
     throw new HttpErrors.BadRequest("No text detected");
   }
 
-  const result = await callChatModel([
-    { role: "user", content: getRecipieScanPrompt(text) },
-  ]);
+  const normalizedText = normalizeReceiptText(text);
+
+  const result = await callChatModel(
+    [{ role: "user", content: getRecipieScanPrompt(normalizedText) }],
+    "Qwen/Qwen2.5-7B-Instruct",
+  );
 
   const clearedResult = result.replaceAll(/```json|```/g, "").trim();
+
   const parsedResult = JSON.parse(clearedResult);
 
   fs.unlinkSync(filePath);
 
-  res.status(200).json({ data: parsedResult, message: "Receipt processed" });
+  res.status(200).json({
+    status: parsedResult.status,
+    data: parsedResult.fields,
+    message: parsedResult.debug?.notes || "Receipt processed",
+  });
+}
+
+function normalizeReceiptText(text: string) {
+  return text
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join("\n");
 }
