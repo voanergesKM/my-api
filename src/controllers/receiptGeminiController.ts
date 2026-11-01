@@ -31,9 +31,8 @@ export async function receiptGeminiController(
 
   const model = process.env.GEMINI_RECEIPT_MODEL || "gemini-2.5-flash-lite";
   if (req.file.mimetype === "application/pdf") {
-    const pdfResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      request: RequestInit = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -63,10 +62,20 @@ export async function receiptGeminiController(
             responseJsonSchema: receiptResponseFormat.json_schema.schema,
           },
         }),
-      },
-    ).catch(() => {
-      throw new ProviderError("Gemini", undefined, model);
-    });
+      };
+    let pdfResponse: globalThis.Response;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        pdfResponse = await fetch(url, request);
+      } catch {
+        throw new ProviderError("Gemini", undefined, model);
+      }
+      if (pdfResponse.status !== 503 || attempt === 2) break;
+      await pdfResponse.body?.cancel();
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1000 * 2 ** attempt + Math.random() * 250),
+      );
+    }
     if (!pdfResponse.ok)
       throw new ProviderError("Gemini", pdfResponse.status, model);
     let payload: {
@@ -86,7 +95,7 @@ export async function receiptGeminiController(
         "Model response exceeded the output token limit",
       );
     const parsedResult = parseReceiptResponse(
-      candidate?.content?.parts?.map(part => part.text ?? "").join("") ?? "",
+      candidate?.content?.parts?.map((part) => part.text ?? "").join("") ?? "",
     );
     if (parsedResult.status === "error")
       throw new HttpErrors.BadRequest(

@@ -106,9 +106,11 @@ test("Gemini receives a PDF document and returns the receipt format", async () =
   const originalKey = process.env.GEMINI_API_KEY;
   process.env.GEMINI_API_KEY = "test-only";
   let requestBody: any;
+  let attempts = 0;
   globalThis.fetch = async (input, init) => {
     assert.match(String(input), /:generateContent$/);
     requestBody = JSON.parse(init?.body as string);
+    if (++attempts === 1) return new Response(null, { status: 503 });
     return new Response(
       JSON.stringify({
         candidates: [
@@ -151,6 +153,7 @@ test("Gemini receives a PDF document and returns the receipt format", async () =
       },
     } as unknown as Parameters<typeof receiptGeminiController>[1];
     await receiptGeminiController(req, res);
+    assert.equal(attempts, 2);
     assert.deepEqual(requestBody.contents[0].parts[1].inlineData, {
       mimeType: "application/pdf",
       data: "cGRm",
