@@ -100,3 +100,74 @@ test("Gemini receives the image and schema and returns the existing receipt form
     else process.env.GEMINI_RECEIPT_MODEL = originalModel;
   }
 });
+
+test("Gemini receives a PDF document and returns the receipt format", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalKey = process.env.GEMINI_API_KEY;
+  process.env.GEMINI_API_KEY = "test-only";
+  let requestBody: any;
+  globalThis.fetch = async (input, init) => {
+    assert.match(String(input), /:generateContent$/);
+    requestBody = JSON.parse(init?.body as string);
+    return new Response(
+      JSON.stringify({
+        candidates: [
+          {
+            finishReason: "STOP",
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    status: "success",
+                    fields: {
+                      items: [],
+                      total: null,
+                      currency: null,
+                      date: null,
+                    },
+                    debug: { ocr_quality: "good", notes: "" },
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    );
+  };
+  try {
+    let response: any;
+    const req = {
+      file: { mimetype: "application/pdf", buffer: Buffer.from("pdf") },
+    } as Parameters<typeof receiptGeminiController>[0];
+    const res = {
+      status(code: number) {
+        assert.equal(code, 200);
+        return this;
+      },
+      json(body: unknown) {
+        response = body;
+      },
+    } as unknown as Parameters<typeof receiptGeminiController>[1];
+    await receiptGeminiController(req, res);
+    assert.deepEqual(requestBody.contents[0].parts[1].inlineData, {
+      mimeType: "application/pdf",
+      data: "cGRm",
+    });
+    assert.equal(
+      requestBody.generationConfig.responseMimeType,
+      "application/json",
+    );
+    assert.equal(response.status, "partial");
+    globalThis.fetch = async () => new Response(null, { status: 429 });
+    await assert.rejects(receiptGeminiController(req, res), {
+      provider: "Gemini",
+      upstreamStatus: 429,
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalKey === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = originalKey;
+  }
+});
