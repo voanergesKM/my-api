@@ -69,6 +69,15 @@ test("Gemini receives the image and schema and returns the existing receipt form
     assert.equal(response.data.items[0].name, "Молоко");
     assert.equal(response.data.categories.food, 30);
 
+    const successfulFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(null, { status: 404 });
+    await assert.rejects(receiptGeminiController(req, res), {
+      provider: "Gemini",
+      upstreamStatus: 404,
+      model: "test-model",
+    });
+    globalThis.fetch = successfulFetch;
+
     finishReason = "length";
     await assert.rejects(receiptGeminiController(req, res), { status: 502 });
     finishReason = "stop";

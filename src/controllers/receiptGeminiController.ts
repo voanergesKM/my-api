@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import HttpErrors from "http-errors";
 import { OpenAI } from "openai";
 
+import { ProviderError } from "~/middlewares/errorHandler.js";
 import { RECEIPT_OCR_SYSTEM_PROMPT } from "~/prompts/receiptOcr.prompt.js";
 import {
   parseReceiptResponse,
@@ -28,30 +29,38 @@ export async function receiptGeminiController(
     apiKey: process.env.GEMINI_API_KEY,
     baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
   });
-  const response = await client.chat.completions.create({
-    model: process.env.GEMINI_RECEIPT_MODEL || "gemini-2.5-flash-lite",
-    messages: [
-      { role: "system", content: RECEIPT_OCR_SYSTEM_PROMPT },
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Extract this receipt using the required JSON schema.",
-          },
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`,
+  const model = process.env.GEMINI_RECEIPT_MODEL || "gemini-2.5-flash-lite";
+  const response = await client.chat.completions
+    .create({
+      model,
+      messages: [
+        { role: "system", content: RECEIPT_OCR_SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Extract this receipt using the required JSON schema.",
             },
-          },
-        ],
-      },
-    ],
-    max_tokens: 8192,
-    temperature: 0,
-    response_format: receiptResponseFormat,
-  });
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`,
+              },
+            },
+          ],
+        },
+      ],
+      max_tokens: 8192,
+      temperature: 0,
+      response_format: receiptResponseFormat,
+    })
+    .catch((error: unknown) => {
+      if (error instanceof OpenAI.APIError) {
+        throw new ProviderError("Gemini", error.status, model, error.requestID);
+      }
+      throw error;
+    });
 
   if (response.choices?.[0]?.finish_reason === "length") {
     throw new HttpErrors.BadGateway(
